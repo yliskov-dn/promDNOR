@@ -13,8 +13,20 @@ app.use(bodyParser.json());
 app.use(express.static(__dirname+'/public')); 
 const server = http.createServer(app);
 
+const Stream = new EventEmitter(); 
+Stream.on("updateUI", (alert, data) => {
+	console.log(`Alert FIRING: ${JSON.stringify(alert)} update UI`)
+});
+Stream.on("logELK", (alert, data) => {
+	console.log(`Alert FIRING: ${JSON.stringify(alert)} log ELK`)
+});
+
 app.post('/api/v1/alerts', (req, res) => {
     console.log(req.body);
+    req.body.map((alert) => {
+        Stream.emit("updateUI", alert.labels, alert);
+        Stream.emit("logELK"  , alert.labels, alert);       
+    })
 	res.sendStatus(200);
 });
 
