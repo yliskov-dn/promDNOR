@@ -18,6 +18,8 @@
   "homepage": "https://github.com/yliskov-dn/promDNOR#readme",
   "dependencies": {
     "express": "^4.17.1",
-    "prom-client": "^11.5.3"
+    "node-docker-api": "^1.1.22",
+    "prom-client": "^11.5.3",
+    "snappy": "^6.2.3"
   }
 }
