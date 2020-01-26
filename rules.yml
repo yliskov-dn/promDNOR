@@ -1,0 +1,585 @@
+groups:
+# Prometheus metrics
+- name: prometheus
+  rules:
+  - alert: PrometheusNotConnectedToAlertmanager
+    expr: prometheus_notifications_alertmanagers_discovered < 1
+    for: 5m
+    labels:
+      severity: error
+    annotations:
+      summary: "Prometheus not connected to alertmanager (instance {{ $labels.instance }})"
+      description: "Prometheus cannot connect the alertmanager\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: PrometheusConfigurationReload
+    expr: prometheus_config_last_reload_successful != 1
+    for: 5m
+    labels:
+      severity: error
+    annotations:
+      summary: "Prometheus configuration reload (instance {{ $labels.instance }})"
+      description: "Prometheus configuration reload error\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: AlertmanagerConfigurationReload
+    expr: alertmanager_config_last_reload_successful != 1
+    for: 5m
+    labels:
+      severity: error
+    annotations:
+      summary: "AlertManager configuration reload (instance {{ $labels.instance }})"
+      description: "AlertManager configuration reload error\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: ExporterDown
+    expr: up == 0
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Exporter down (instance {{ $labels.instance }})"
+      description: "Prometheus exporter down\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+# Host metrics
+  - alert: OutOfMemory
+    expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Out of memory (instance {{ $labels.instance }})"
+      description: "Node memory is filling up (< 10% left)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: UnusualNetworkThroughputIn
+    expr: sum by (instance) (irate(node_network_receive_bytes_total[2m])) / 1024 / 1024 > 100
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Unusual network throughput in (instance {{ $labels.instance }})"
+      description: "Host network interfaces are probably receiving too much data (> 100 MB/s)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: UnusualNetworkThroughputOut
+    expr: sum by (instance) (irate(node_network_transmit_bytes_total[2m])) / 1024 / 1024 > 100
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Unusual network throughput out (instance {{ $labels.instance }})"
+      description: "Host network interfaces are probably sending too much data (> 100 MB/s)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: UnusualDiskReadRate
+    expr: sum by (instance) (irate(node_disk_read_bytes_total[2m])) / 1024 / 1024 > 50
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Unusual disk read rate (instance {{ $labels.instance }})"
+      description: "Disk is probably reading too much data (> 50 MB/s)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: UnusualDiskWriteRate
+    expr: sum by (instance) (irate(node_disk_written_bytes_total[2m])) / 1024 / 1024 > 50
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Unusual disk write rate (instance {{ $labels.instance }})"
+      description: "Disk is probably writing too much data (> 50 MB/s)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: OutOfDiskSpace
+    expr: node_filesystem_free_bytes{mountpoint ="/rootfs"} / node_filesystem_size_bytes{mountpoint ="/rootfs"} * 100 < 10
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Out of disk space (instance {{ $labels.instance }})"
+      description: "Disk is almost full (< 10% left)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+      
+  - alert: DiskWillFillIn4Hours
+    expr: predict_linear(node_filesystem_free_bytes[1h], 4 * 3600) < 0
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Disk will fill in 4 hours (instance {{ $labels.instance }})"
+      description: "Disk will fill in 4 hours at current write rate\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: OutOfInodes
+    expr: node_filesystem_files_free{mountpoint ="/rootfs"} / node_filesystem_files{mountpoint ="/rootfs"} * 100 < 10
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Out of inodes (instance {{ $labels.instance }})"
+      description: "Disk is almost running out of available inodes (< 10% left)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: UnusualDiskReadLatency
+    expr: rate(node_disk_read_time_seconds_total[1m]) / rate(node_disk_reads_completed_total[1m]) > 100
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Unusual disk read latency (instance {{ $labels.instance }})"
+      description: "Disk latency is growing (read operations > 100ms)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: UnusualDiskWriteLatency
+    expr: rate(node_disk_write_time_seconds_total[1m]) / rate(node_disk_writes_completed_total[1m]) > 100
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Unusual disk write latency (instance {{ $labels.instance }})"
+      description: "Disk latency is growing (write operations > 100ms)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+  - alert: HighCpuLoad
+    expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High CPU load (instance {{ $labels.instance }})"
+      description: "CPU load is > 80%\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+# 1000 context switches is an arbitrary number.
+# Alert threshold depends on nature of application.
+# Please read: https://github.com/samber/awesome-prometheus-alerts/issues/58
+
+- alert: ContextSwitching
+  expr: rate(node_context_switches_total[5m]) > 1000
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Context switching (instance {{ $labels.instance }})"
+    description: "Context switching is growing on node (> 1000 / s)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: SwapIsFillingUp
+  expr: (1 - (node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes)) * 100 > 80
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Swap is filling up (instance {{ $labels.instance }})"
+    description: "Swap is filling up (>80%)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: SystemdServiceCrashed
+  expr: node_systemd_unit_state{state="failed"} == 1
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "SystemD service crashed (instance {{ $labels.instance }})"
+    description: "SystemD service crashed\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: PhysicalComponentTooHot
+  expr: node_hwmon_temp_celsius > 75
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Physical component too hot (instance {{ $labels.instance }})"
+    description: "Physical hardware component too hot\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: NodeOvertemperatureAlarm
+  expr: node_hwmon_temp_alarm == 1
+  for: 5m
+  labels:
+    severity: critical
+  annotations:
+    summary: "Node overtemperature alarm (instance {{ $labels.instance }})"
+    description: "Physical node temperature alarm triggered\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+# Docker containers metrics
+
+- alert: ContainerKilled
+  expr: time() - container_last_seen > 60
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Container killed (instance {{ $labels.instance }})"
+    description: "A container has disappeared\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ContainerCpuUsage
+  expr: (sum(rate(container_cpu_usage_seconds_total[3m])) BY (instance, name) * 100) > 80
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Container CPU usage (instance {{ $labels.instance }})"
+    description: "Container CPU usage is above 80%\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ContainerMemoryUsage
+  expr: (sum(container_memory_usage_bytes) BY (instance) / sum(container_memory_max_usage_bytes) BY (instance) * 100) > 80
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Container Memory usage (instance {{ $labels.instance }})"
+    description: "Container Memory usage is above 80%\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ContainerVolumeUsage
+  expr: (1 - (sum(container_fs_inodes_free) BY (instance) / sum(container_fs_inodes_total) BY (instance)) * 100) > 80
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Container Volume usage (instance {{ $labels.instance }})"
+    description: "Container Volume usage is above 80%\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+# RabbitMQ metrics
+
+- alert: RabbitmqDown
+  expr: rabbitmq_up == 0
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Rabbitmq down (instance {{ $labels.instance }})"
+    description: "RabbitMQ node down\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ClusterDown
+  expr: sum(rabbitmq_running) < 3
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Cluster down (instance {{ $labels.instance }})"
+    description: "Less than 3 nodes running in RabbitMQ cluster\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ClusterPartition
+  expr: rabbitmq_partitions > 0
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Cluster partition (instance {{ $labels.instance }})"
+    description: "Cluster partition\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: OutOfMemory
+  expr: rabbitmq_node_mem_used / rabbitmq_node_mem_limit * 100 > 90
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Out of memory (instance {{ $labels.instance }})"
+    description: "Memory available for RabbmitMQ is low (< 10%)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: TooManyConnections
+  expr: rabbitmq_connectionsTotal > 1000
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Too many connections (instance {{ $labels.instance }})"
+    description: "RabbitMQ instance has too many connections (> 1000)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: DeadLetterQueueFillingUp
+  expr: rabbitmq_queue_messages{queue="my-dead-letter-queue"} > 10
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Dead letter queue filling up (instance {{ $labels.instance }})"
+    description: "Dead letter queue is filling up (> 10 msgs)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: TooManyMessagesInQueue
+  expr: rabbitmq_queue_messages_ready{queue="my-queue"} > 1000
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Too many messages in queue (instance {{ $labels.instance }})"
+    description: "Queue is filling up (> 1000 msgs)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: SlowQueueConsuming
+  expr: time() - rabbitmq_queue_head_message_timestamp{queue="my-queue"} > 60
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Slow queue consuming (instance {{ $labels.instance }})"
+    description: "Queue messages are consumed slowly (> 60s)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: NoConsumer
+  expr: rabbitmq_queue_consumers == 0
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "No consumer (instance {{ $labels.instance }})"
+    description: "Queue has no consumer\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: TooManyConsumers
+  expr: rabbitmq_queue_consumers > 1
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Too many consumers (instance {{ $labels.instance }})"
+    description: "Queue should have only 1 consumer\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: UnactiveExchange
+  expr: rate(rabbitmq_exchange_messages_published_in_total{exchange="my-exchange"}[1m]) < 5
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Unactive exchange (instance {{ $labels.instance }})"
+    description: "Exchange receive less than 5 msgs per second\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+# PostgreSQL metrics
+
+- alert: PostgresqlDown
+  expr: pg_up == 0
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "PostgreSQL down (instance {{ $labels.instance }})"
+    description: "PostgreSQL instance is down\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ReplicationLag
+  expr: pg_replication_lag > 10
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Replication lag (instance {{ $labels.instance }})"
+    description: "PostgreSQL replication lag is going up (> 10s)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: TableNotVaccumed
+  expr: time() - pg_stat_user_tables_last_autovacuum > 60 * 60 * 24
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Table not vaccumed (instance {{ $labels.instance }})"
+    description: "Table has not been vaccum for 24 hours\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: TableNotAnalyzed
+  expr: time() - pg_stat_user_tables_last_autoanalyze > 60 * 60 * 24
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Table not analyzed (instance {{ $labels.instance }})"
+    description: "Table has not been analyzed for 24 hours\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: TooManyConnections
+  expr: sum by (datname) (pg_stat_activity_count{datname!~"template.*|postgres"}) > 100
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Too many connections (instance {{ $labels.instance }})"
+    description: "PostgreSQL instance has too many connections\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: NotEnoughConnections
+  expr: sum by (datname) (pg_stat_activity_count{datname!~"template.*|postgres"}) < 5
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Not enough connections (instance {{ $labels.instance }})"
+    description: "PostgreSQL instance should have more connections (> 5)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: DeadLocks
+  expr: rate(pg_stat_database_deadlocks{datname!~"template.*|postgres"}[1m]) > 0
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Dead locks (instance {{ $labels.instance }})"
+    description: "PostgreSQL has dead-locks\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: SlowQueries
+  expr: avg(rate(pg_stat_activity_max_tx_duration{datname!~"template.*"}[1m])) BY (datname) > 60
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Slow queries (instance {{ $labels.instance }})"
+    description: "PostgreSQL executes slow queries (> 1min)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: HighRollbackRate
+  expr: rate(pg_stat_database_xact_rollback{datname!~"template.*"}[3m]) / rate(pg_stat_database_xact_commit{datname!~"template.*"}[3m]) > 0.02
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "High rollback rate (instance {{ $labels.instance }})"
+    description: "Ratio of transactions being aborted compared to committed is > 2 %\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+# Reis metrics
+
+- alert: RedisDown
+  expr: redis_up == 0
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Redis down (instance {{ $labels.instance }})"
+    description: "Redis instance is down\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: MissingBackup
+  expr: time() - redis_rdb_last_save_timestamp_seconds > 60 * 60 * 24
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Missing backup (instance {{ $labels.instance }})"
+    description: "Redis has not been backuped for 24 hours\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: OutOfMemory
+  expr: redis_memory_used_bytes / redis_total_system_memory_bytes * 100 > 90
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Out of memory (instance {{ $labels.instance }})"
+    description: "Redis is running out of memory (> 90%)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ReplicationBroken
+  expr: delta(redis_connected_slaves[1m]) < 0
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Replication broken (instance {{ $labels.instance }})"
+    description: "Redis instance lost a slave\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: TooManyConnections
+  expr: redis_connected_clients > 100
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Too many connections (instance {{ $labels.instance }})"
+    description: "Redis instance has too many connections\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: NotEnoughConnections
+  expr: redis_connected_clients < 5
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Not enough connections (instance {{ $labels.instance }})"
+    description: "Redis instance should have more connections (> 5)\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: RejectedConnections
+  expr: increase(redis_rejected_connections_total[1m]) > 0
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Rejected connections (instance {{ $labels.instance }})"
+    description: "Some connections to Redis has been rejected\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+# Elasticsearch metrics
+
+- alert: ElasticHeapUsageTooHigh
+  expr: (elasticsearch_jvm_memory_used_bytes{area="heap"} / elasticsearch_jvm_memory_max_bytes{area="heap"}) * 100 > 90
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Elastic Heap Usage Too High (instance {{ $labels.instance }})"
+    description: "The heap usage is over 90% for 5m\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ElasticHeapUsageWarning
+  expr: (elasticsearch_jvm_memory_used_bytes{area="heap"} / elasticsearch_jvm_memory_max_bytes{area="heap"}) * 100 > 80
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Elastic Heap Usage warning (instance {{ $labels.instance }})"
+    description: "The heap usage is over 80% for 5m\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ElasticClusterRed
+  expr: elasticsearch_cluster_health_status{color="red"} == 1
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Elastic Cluster Red (instance {{ $labels.instance }})"
+    description: "Elastic Cluster Red status\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ElasticClusterYellow
+  expr: elasticsearch_cluster_health_status{color="yellow"} == 1
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Elastic Cluster Yellow (instance {{ $labels.instance }})"
+    description: "Elastic Cluster Yellow status\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ElasticClusterYellow
+  expr: elasticsearch_cluster_health_status{color="yellow"} == 1
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Elastic Cluster Yellow (instance {{ $labels.instance }})"
+    description: "Elastic Cluster Yellow status\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: NumberOfElasticHealthyNodes
+  expr: elasticsearch_cluster_health_number_of_nodes < number_of_nodes
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Number of Elastic Healthy Nodes (instance {{ $labels.instance }})"
+    description: "Number Healthy Nodes less then number_of_nodes\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: NumberOfElasticHealthyDataNodes
+  expr: elasticsearch_cluster_health_number_of_data_nodes < number_of_data_nodes
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Number of Elastic Healthy Data Nodes (instance {{ $labels.instance }})"
+    description: "Number Healthy Data Nodes less then number_of_data_nodes\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: NumberOfRelocationShards
+  expr: elasticsearch_cluster_health_relocating_shards > 0
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Number of relocation shards (instance {{ $labels.instance }})"
+    description: "Number of relocation shards for 20 min\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: NumberOfInitializingShards
+  expr: elasticsearch_cluster_health_initializing_shards > 0
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Number of initializing shards (instance {{ $labels.instance }})"
+    description: "Number of initializing shards for 10 min\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: NumberOfUnassignedShards
+  expr: elasticsearch_cluster_health_unassigned_shards > 0
+  for: 5m
+  labels:
+    severity: error
+  annotations:
+    summary: "Number of unassigned shards (instance {{ $labels.instance }})"
+    description: "Number of unassigned shards for 2 min\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: NumberOfPendingTasks
+  expr: elasticsearch_cluster_health_number_of_pending_tasks > 0
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Number of pending tasks (instance {{ $labels.instance }})"
+    description: "Number of pending tasks for 10 min. Cluster works slowly.\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+
+- alert: ElasticNoNewDocuments
+  expr: rate(elasticsearch_indices_docs{es_data_node="true"}[10m]) < 1
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Elastic no new documents (instance {{ $labels.instance }})"
+    description: "No new documents for 10 min!\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"

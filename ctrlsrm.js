@@ -21,13 +21,13 @@ Stream.on("srm", (cmd, data) => {
     console.log(`SRM Command: ${cmd} => ${JSON.stringify(data)} `)
     docker.container.create({
         Image: 'prom/prometheus',
-        name: 'srm'
+        name: 'dnor_srm'
       }) 
         .then((container) => cmd == 'start' ? container.start() : 
                              cmd == 'stop' ? container.stop() : 
                              cmd == 'restart' ? container.restart() : 
                              console.warn(`Unknow command: ${cmd}`))
-        .catch((error) => console.log(error))    
+        .catch((error) => console.error(error))    
 });
 Stream.on("target", (cmd, data) => {
 	console.log(`Target Command: ${cmd} => ${JSON.stringify(data)}`)

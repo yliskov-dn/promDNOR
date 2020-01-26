@@ -1,0 +1,34 @@
+
+global:
+  scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  # scrape_timeout is set to the global default (10s).
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+      - 100.64.1.168:8100
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  - "first_rules.yml"
+  # - "rules.yml"
+
+# Timescale DB metric replication
+remote_write:
+  - url: "http://100.64.1.168:8500/dbreplic"
+
+# A scrape configuration containing exactly one endpoint to scrape:
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'prometheus'
+    static_configs:
+    - targets: ['localhost:9090']
+  - job_name: 'node_exported'
+    static_configs:
+    - targets: ['kvm39-dev09:9100']
+  - job_name: 'my_target_js'
+    static_configs:
+    - targets: ['100.64.1.168:9500']
